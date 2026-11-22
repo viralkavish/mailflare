@@ -1,3 +1,7 @@
+/*
+ * Modified by Viral Patel on 2026-11-20 under GNU AGPL-3.0 Section 5(a) & Section 13:
+ * Added prominent public source-code link for network users.
+ */
 "use client";
 
 import { useState } from "react";
@@ -61,8 +65,16 @@ export function AuthShell({
             )}
           </div>
 
-          <div className="mt-auto hidden pt-8 lg:block">
+          <div className="mt-auto hidden pt-8 lg:flex lg:items-center lg:justify-between lg:gap-4">
             <LanguageSelector variant="text" />
+            <a
+              href="https://github.com/viralkavish/mailflare"
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-neutral-400 hover:text-neutral-600"
+            >
+              Source (AGPL-3.0)
+            </a>
           </div>
         </section>
 
@@ -91,8 +103,16 @@ export function AuthShell({
               {footer}
             </div>
           )}
-          <div className="mt-auto pt-8 lg:hidden">
+          <div className="mt-auto flex items-center justify-between pt-8 lg:hidden">
             <LanguageSelector variant="text" />
+            <a
+              href="https://github.com/viralkavish/mailflare"
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-neutral-400 hover:text-neutral-600"
+            >
+              Source (AGPL-3.0)
+            </a>
           </div>
         </section>
       </main>

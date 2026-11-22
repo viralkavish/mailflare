@@ -1,3 +1,8 @@
+/*
+ * Modified by Viral Patel on 2026-11-20 under GNU AGPL-3.0 Section 5(a):
+ * Extended SESSION_DAYS to 90 days with sliding session refresh so installed
+ * mobile PWAs continue receiving Web Push notifications reliably.
+ */
 import { and, eq, gt, ne } from "drizzle-orm";
 import { revokeAllDeviceKeys } from "@/lib/auth/device-keys";
 import { newId } from "@/lib/ids";
@@ -5,7 +10,7 @@ import { getDb } from "@/db";
 import { sessions, users } from "@/db/schema";
 
 export const SESSION_COOKIE = "ep_session";
-const SESSION_DAYS = 30;
+const SESSION_DAYS = 90;
 
 export function generateSessionToken(): string {
 	return newId("sess");
@@ -61,6 +66,11 @@ export async function getSessionFromToken(
 		.from(sessions)
 		.where(and(eq(sessions.tokenHash, tokenHash), gt(sessions.expiresAt, new Date())))
 		.limit(1);
+	if (session && session.expiresAt.getTime() - Date.now() < 60 * 86_400_000) {
+		const refreshedExpiry = new Date(Date.now() + SESSION_DAYS * 86_400_000);
+		await db.update(sessions).set({ expiresAt: refreshedExpiry }).where(eq(sessions.id, session.id));
+		session.expiresAt = refreshedExpiry;
+	}
 	return session ?? null;
 }
 

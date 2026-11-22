@@ -1,3 +1,9 @@
+/*
+ * Modified by Viral Patel on 2026-11-20 under GNU AGPL-3.0 Section 5(a):
+ * Enabled self-hosted multi-user accounts, shared mailboxes, custom branding,
+ * and email forwarding entitlements for the public fork at
+ * https://github.com/viralkavish/mailflare.
+ */
 import { eq } from "drizzle-orm";
 import packageJson from "../../../package.json";
 import { getDb } from "@/db";
@@ -22,7 +28,7 @@ async function getOrCreateLicenseSettings(env: CloudflareEnv) {
 
 	await db
 		.insert(licenseSettings)
-		.values({ id: LICENSE_SETTINGS_ID, instanceId: crypto.randomUUID() })
+		.values({ id: LICENSE_SETTINGS_ID, instanceId: crypto.randomUUID(), plan: "team", state: "active", seatLimit: null })
 		.onConflictDoNothing({ target: licenseSettings.id });
 	const [settings] = await db
 		.select()
@@ -34,17 +40,16 @@ async function getOrCreateLicenseSettings(env: CloudflareEnv) {
 }
 
 function toLicenseStatus(settings: typeof licenseSettings.$inferSelect): LicenseStatus {
-	const active = settings.state === "active" && (settings.plan === "pro" || settings.plan === "team");
 	return {
-		plan: active ? settings.plan : "community",
-		state: settings.state,
+		plan: "team",
+		state: "active",
 		features: parseFeatures(settings.features),
-		seatLimit: active && settings.plan === "pro" ? settings.seatLimit : null,
+		seatLimit: null,
 		instanceId: settings.instanceId,
 		instanceUrl: settings.instanceUrl,
-		active,
-		activatedAt: settings.activatedAt,
-		validatedAt: settings.validatedAt,
+		active: true,
+		activatedAt: settings.activatedAt ?? new Date(),
+		validatedAt: settings.validatedAt ?? new Date(),
 	};
 }
 
@@ -53,20 +58,15 @@ export async function getLicenseStatus(env: CloudflareEnv): Promise<LicenseStatu
 }
 
 export async function getLicenseEntitlements(env: CloudflareEnv): Promise<LicenseEntitlements> {
-	try {
-		const status = await getLicenseStatus(env);
-		// Pro adds accounts up to its seat limit; Team is unlimited and also unlocks shared mailboxes.
-		return {
-			plan: status.plan,
-			canCustomizeBranding: status.active,
-			canManageAccounts: status.active,
-			canShareMailboxes: status.active && status.plan === "team",
-			accountSeatLimit: status.seatLimit,
-			canForwardEmail: status.active,
-		};
-	} catch {
-		return { plan: "community", canCustomizeBranding: false, canManageAccounts: false, canShareMailboxes: false, accountSeatLimit: 0, canForwardEmail: false };
-	}
+	void env;
+	return {
+		plan: "team",
+		canCustomizeBranding: true,
+		canManageAccounts: true,
+		canShareMailboxes: true,
+		accountSeatLimit: null,
+		canForwardEmail: true,
+	};
 }
 
 async function updateLicenseFromPaymug(

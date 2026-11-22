@@ -1,17 +1,11 @@
-import { eq } from "drizzle-orm";
+/*
+ * Modified by Viral Patel on 2026-11-20 under GNU AGPL-3.0 Section 5(a):
+ * Enabled shared mailbox access & notification fan-out for self-hosted AGPL fork
+ * (https://github.com/viralkavish/mailflare).
+ */
 import type { AppDatabase } from "@/db";
-import { licenseSettings } from "@/db/schema";
 
 export async function isTeamMailboxSharingEnabled(db: AppDatabase): Promise<boolean> {
-	try {
-		const [license] = await db
-			.select({ plan: licenseSettings.plan, state: licenseSettings.state })
-			.from(licenseSettings)
-			.where(eq(licenseSettings.id, "default"))
-			.limit(1);
-
-		return license?.plan === "team" && license.state === "active";
-	} catch {
-		return false;
-	}
+	void db;
+	return true;
 }

@@ -1,3 +1,8 @@
+/*
+ * Modified by Viral Patel on 2026-11-20 under GNU AGPL-3.0 Section 5(a):
+ * Added Cloudflare AI Gateway ('mailflare') Google AI Studio BYOK routing with
+ * Gemini thought_signature preservation (https://github.com/viralkavish/mailflare).
+ */
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
@@ -53,11 +58,100 @@ function withDedupedStreams(binding: Ai): Ai {
 	});
 }
 
+const thoughtSignatureCache = new Map<string, unknown>();
+
+function rememberThoughtSig(id: string | undefined, extra: unknown) {
+	if (!id || !extra) return;
+	if (thoughtSignatureCache.size > 500) {
+		const oldest = thoughtSignatureCache.keys().next().value;
+		if (oldest) thoughtSignatureCache.delete(oldest);
+	}
+	thoughtSignatureCache.set(id, extra);
+}
+
+function createAigByokFetch(aiBinding: Ai): typeof fetch {
+	return async (_input, init) => {
+		const rawBody = typeof init?.body === "string" ? init.body : "{}";
+		const query = JSON.parse(rawBody) as Record<string, unknown>;
+		if (typeof query.model === "string") {
+			query.model = query.model.replace(/^google(-ai-studio)?\//, "");
+		}
+		if (Array.isArray(query.messages)) {
+			for (const msg of query.messages as Array<Record<string, unknown>>) {
+				if (Array.isArray(msg.tool_calls)) {
+					for (const tc of msg.tool_calls as Array<Record<string, unknown>>) {
+						const cached = typeof tc.id === "string" ? thoughtSignatureCache.get(tc.id) : undefined;
+						if (cached && !tc.extra_content) tc.extra_content = cached;
+					}
+				}
+			}
+		}
+		const gateway = (aiBinding as unknown as { gateway: (id: string) => { run: (req: unknown) => Promise<Response> } }).gateway("mailflare");
+		const res = await gateway.run({
+			provider: "google-ai-studio",
+			endpoint: "v1beta/openai/chat/completions",
+			headers: {
+				"content-type": "application/json",
+				"cf-aig-byok-alias": "default",
+				"cf-aig-metadata": JSON.stringify({ app: "vdesai-mail" }),
+			},
+			query,
+		});
+		const ct = res.headers.get("content-type") || "";
+		if (ct.includes("text/event-stream") && res.body) {
+			const dec = new TextDecoder();
+			let buf = "";
+			const [outStream, spyStream] = res.body.tee();
+			void (async () => {
+				const reader = spyStream.getReader();
+				try {
+					while (true) {
+						const { done, value } = await reader.read();
+						if (done) break;
+						buf += dec.decode(value, { stream: true });
+						const lines = buf.split("\n");
+						buf = lines.pop() ?? "";
+						for (const line of lines) {
+							if (!line.startsWith("data:")) continue;
+							const jsonStr = line.slice(5).trim();
+							if (!jsonStr || jsonStr === "[DONE]") continue;
+							try {
+								const ev = JSON.parse(jsonStr);
+								for (const tc of ev?.choices?.[0]?.delta?.tool_calls ?? []) {
+									if (tc?.id && tc?.extra_content) rememberThoughtSig(tc.id, tc.extra_content);
+								}
+							} catch {
+								// ignore partial chunks
+							}
+						}
+					}
+				} catch {
+					// stream closed
+				}
+			})();
+			return new Response(outStream, { status: res.status, statusText: res.statusText, headers: res.headers });
+		}
+		return res;
+	};
+}
+
 export async function getAgentModel(env: CloudflareEnv, requestedModel?: string | null) {
 	const config = await getAgentProviderConfig(env);
 	const modelId = requestedModel && config.models.includes(requestedModel) ? requestedModel : config.model;
 	const details = { modelId, provider: config.provider === "cloudflare" ? "cloudflare" : config.preset, rates: config.rates[modelId] };
-	if (config.provider === "cloudflare") return env.AI ? { model: createWorkersAI({ binding: withDedupedStreams(env.AI) })(modelId), ...details } : null;
+	if (config.provider === "cloudflare") {
+		if (!env.AI) return null;
+		if (!modelId.startsWith("@cf/") && !modelId.startsWith("@hf/")) {
+			const aigProvider = createOpenAICompatible({
+				name: "mailflare-aig-byok",
+				baseURL: "https://aig.internal/v1beta/openai",
+				apiKey: "cf-aig-byok",
+				fetch: createAigByokFetch(env.AI),
+			});
+			return { model: aigProvider.chatModel(modelId), ...details };
+		}
+		return { model: createWorkersAI({ binding: withDedupedStreams(env.AI) })(modelId), ...details };
+	}
 	if (config.baseUrl && config.apiKey && modelId) {
 		// Match the endpoint so custom/environment configurations work too.
 		if (config.baseUrl.replace(/\/+$/, "") === PROVIDER_BASE_URLS.openai) {

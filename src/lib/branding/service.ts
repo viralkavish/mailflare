@@ -1,3 +1,8 @@
+/*
+ * Modified by Viral Patel on 2026-11-20 under GNU AGPL-3.0 Section 5(a):
+ * Set default workspace brand name to "VDesai Mail" for https://mail.vdesai.com
+ * (https://github.com/viralkavish/mailflare).
+ */
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { appSettings } from "@/db/schema";
@@ -5,7 +10,7 @@ import type { Branding } from "./types";
 import { getLicenseEntitlements } from "@/lib/licenses/service";
 
 export const APP_SETTINGS_ID = "default";
-export const DEFAULT_APP_NAME = "Mailflare";
+export const DEFAULT_APP_NAME = "VDesai Mail";
 export const BRANDING_ICON_KEY = "branding/app-icon";
 
 export async function getBranding(env: CloudflareEnv): Promise<Branding> {

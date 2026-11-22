@@ -1,7 +1,11 @@
+/*
+ * Modified by Viral Patel on 2026-11-20 under GNU AGPL-3.0 Section 5(a):
+ * Default model set to gemini-2.5-flash routed via Cloudflare AI Gateway ('mailflare') BYOK.
+ */
 import type { AgentProviderPreset } from "./provider-types";
 
 export const AGENT_SETTINGS_ID = "default";
-export const DEFAULT_CLOUDFLARE_MODEL = "@cf/moonshotai/kimi-k2.5";
+export const DEFAULT_CLOUDFLARE_MODEL = "gemini-2.5-flash";
 export const PROVIDER_BASE_URLS: Record<Exclude<AgentProviderPreset, "custom">, string> = {
 	openai: "https://api.openai.com/v1",
 	anthropic: "https://api.anthropic.com/v1",
