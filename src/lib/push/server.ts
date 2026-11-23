@@ -1,3 +1,4 @@
+// Modified for VDesai Mail (https://github.com/viralkavish/mailflare) on 2026-11-23 under GNU AGPL-3.0
 import { and, eq, gt, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { pushSubscriptions, sessions } from "@/db/schema";
@@ -237,7 +238,7 @@ async function sendSubscriptionPush(
 			"Content-Encoding": "aes128gcm",
 			"Content-Type": "application/octet-stream",
 			TTL: "86400",
-			Urgency: "normal",
+			Urgency: "high",
 		},
 		body: toArrayBuffer(body),
 	});
@@ -248,6 +249,7 @@ export type PushContent = {
 	body: string;
 	tag: string;
 	url: string;
+	forceShow?: boolean;
 };
 
 export function buildNewMessagePushContent(payload: NewMessageNotification): PushContent {

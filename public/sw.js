@@ -1,3 +1,4 @@
+// Modified for VDesai Mail (https://github.com/viralkavish/mailflare) on 2026-11-23 under GNU AGPL-3.0
 // Bump OFFLINE_CACHE whenever public/offline.html changes: installed clients keep the cached copy until the cache name changes.
 const OFFLINE_CACHE_PREFIX = "mailflare-offline-";
 const OFFLINE_CACHE = `${OFFLINE_CACHE_PREFIX}v2`;
@@ -79,14 +80,17 @@ async function syncAppBadge() {
 self.addEventListener("push", (event) => {
 	event.waitUntil(
 		(async () => {
-			const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-			if (windows.some((client) => client.visibilityState === "visible")) return;
-
 			let payload = DEFAULT_NOTIFICATION;
 			try {
 				payload = { ...DEFAULT_NOTIFICATION, ...(event.data?.json() ?? {}) };
 			} catch {
 				// Keep the generic notification if a provider delivers an empty or malformed payload.
+			}
+
+			const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+			if (!payload.forceShow && windows.some((client) => client.focused === true)) {
+				await syncAppBadge();
+				return;
 			}
 
 			await Promise.all([
@@ -95,6 +99,7 @@ self.addEventListener("push", (event) => {
 					icon: payload.icon,
 					badge: payload.badge,
 					tag: payload.tag,
+					renotify: true,
 					data: { url: payload.url },
 				}),
 				syncAppBadge(),

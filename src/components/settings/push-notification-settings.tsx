@@ -1,13 +1,17 @@
+// Modified for VDesai Mail (https://github.com/viralkavish/mailflare) on 2026-11-23 under GNU AGPL-3.0
 "use client";
 
 import { useEffect, useState } from "react";
 import { useLanguage } from "@/components/language-provider";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { authFetch } from "@/lib/auth/client";
 import {
 	disablePushNotifications,
 	enablePushNotifications,
 	getPushState,
 } from "@/lib/push/client";
+import toast from "react-hot-toast";
 
 type State = {
 	loading: boolean;
@@ -76,7 +80,12 @@ export function PushNotificationSettings() {
 					onCheckedChange={(enabled) => {
 						setState((current) => ({ ...current, loading: true, error: null }));
 						void (enabled ? enablePushNotifications() : disablePushNotifications())
-							.then(() => getPushState())
+							.then(async () => {
+								if (enabled) {
+									await authFetch("/api/push/test", { method: "POST", redirectOnUnauthorized: false }).catch(() => null);
+								}
+								return getPushState();
+							})
 							.then((next) => setState({ ...next, loading: false, error: null }))
 							.catch((error) => {
 								setState((current) => ({
@@ -89,6 +98,22 @@ export function PushNotificationSettings() {
 					aria-label={t("settings.push.toggleLabel")}
 				/>
 			</label>
+			{state.subscribed && (
+				<div className="mt-2 px-1">
+					<Button
+						type="button"
+						size="sm"
+						variant="outline"
+						onClick={() => {
+							void authFetch("/api/push/test", { method: "POST", redirectOnUnauthorized: false })
+								.then((r) => (r.ok ? toast.success("Test notification sent") : toast.error("Failed to send test notification")))
+								.catch(() => toast.error("Failed to send test notification"));
+						}}
+					>
+						Send test notification
+					</Button>
+				</div>
+			)}
 			{state.error && <p role="alert" className="mt-2 px-4 text-sm text-red-600">{state.error}</p>}
 		</div>
 	);
