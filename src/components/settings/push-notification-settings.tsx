@@ -82,7 +82,7 @@ export function PushNotificationSettings() {
 						void (enabled ? enablePushNotifications() : disablePushNotifications())
 							.then(async () => {
 								if (enabled) {
-									await authFetch("/api/push/test", { method: "POST", redirectOnUnauthorized: false }).catch(() => null);
+									await authFetch("/api/push/config", { method: "POST", redirectOnUnauthorized: false }).catch(() => null);
 								}
 								return getPushState();
 							})
@@ -105,7 +105,7 @@ export function PushNotificationSettings() {
 						size="sm"
 						variant="outline"
 						onClick={() => {
-							void authFetch("/api/push/test", { method: "POST", redirectOnUnauthorized: false })
+							void authFetch("/api/push/config", { method: "POST", redirectOnUnauthorized: false })
 								.then((r) => (r.ok ? toast.success("Test notification sent") : toast.error("Failed to send test notification")))
 								.catch(() => toast.error("Failed to send test notification"));
 						}}

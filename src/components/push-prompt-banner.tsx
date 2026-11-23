@@ -42,7 +42,7 @@ export function PushPromptBanner() {
 		setBusy(true);
 		try {
 			await enablePushNotifications();
-			await authFetch("/api/push/test", {
+			await authFetch("/api/push/config", {
 				method: "POST",
 				redirectOnUnauthorized: false,
 			}).catch(() => null);
