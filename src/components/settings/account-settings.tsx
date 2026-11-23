@@ -1,11 +1,14 @@
+// Modified for VDesai Mail (https://github.com/viralkavish/mailflare) on 2026-11-23 under GNU AGPL-3.0
 "use client";
 
 import { useEffect, useState } from "react";
 import { useLanguage } from "@/components/language-provider";
 import { LanguageSelector } from "@/components/language-selector";
 import { Skeleton } from "@/components/ui/skeleton";
+import { BrowserNotificationSettings } from "./browser-notification-settings";
 import { MailboxSignatureForm } from "./mailbox-signature-form";
 import { ProfileForm } from "./profile-form";
+import { PushNotificationSettings } from "./push-notification-settings";
 import { TimeZoneForm } from "./time-zone-form";
 import type { AccountSettingsResponse } from "./types";
 import { loadAccountSettings } from "./utils";
@@ -51,6 +54,17 @@ export function AccountSettings() {
 				<h1 className="text-2xl md:text-3xl font-medium text-neutral-900">Account</h1>
 				<p className="mt-1 text-sm text-neutral-500">Manage your account details and sign-in password.</p>
 			</div> */}
+
+			<section className="space-y-4">
+				<div>
+					<h2 className="text-xl font-semibold text-neutral-900">{t("settingsPage.inbox.notifications")}</h2>
+					<p className="mt-1 text-sm text-neutral-500">{t("settingsPage.inbox.notificationsDescription")}</p>
+				</div>
+				<div className="space-y-4 rounded-3xl bg-white p-6">
+					<PushNotificationSettings />
+					<BrowserNotificationSettings />
+				</div>
+			</section>
 
 			<section className="space-y-4">
 				<div>

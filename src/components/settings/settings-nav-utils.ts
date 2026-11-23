@@ -1,3 +1,4 @@
+// Modified for VDesai Mail (https://github.com/viralkavish/mailflare) on 2026-11-23 under GNU AGPL-3.0
 import type { SettingsNavSection } from "./settings-nav-types";
 
 export const settingsNavSections: SettingsNavSection[] = [
@@ -7,6 +8,10 @@ export const settingsNavSections: SettingsNavSection[] = [
 			{
 				href: "/settings/account",
 				labelKey: "settings.nav.account",
+			},
+			{
+				href: "/settings/notifications",
+				labelKey: "settingsPage.inbox.notifications",
 			},
 			{
 				href: "/settings/inbox",

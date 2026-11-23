@@ -1,3 +1,4 @@
+// Modified for VDesai Mail (https://github.com/viralkavish/mailflare) on 2026-11-23 under GNU AGPL-3.0
 import { getServerTranslator } from "@/lib/i18n/server";
 import { AppearanceSettings } from "@/components/settings/appearance-settings";
 import { InboxThreadingSettings } from "@/components/settings/inbox-threading-settings";
@@ -23,6 +24,16 @@ export default async function SettingsInboxPage() {
 					<p className="mt-1 text-sm text-neutral-500">{t("settingsPage.inbox.experienceDescription")}</p>
 				</div>
 				<div className="divide-y divide-neutral-100 rounded-3xl bg-white p-6">
+					<div className="py-6 first:pt-0 last:pb-0">
+						<div className="mb-4">
+							<h3 className="text-base font-semibold text-neutral-900">{t("settingsPage.inbox.notifications")}</h3>
+							<p className="mt-1 text-sm text-neutral-500">{t("settingsPage.inbox.notificationsDescription")}</p>
+						</div>
+						<PushNotificationSettings />
+						<div className="mt-4">
+							<BrowserNotificationSettings />
+						</div>
+					</div>
 					<div className="py-6 first:pt-0 last:pb-0">
 						<div className="mb-4">
 							<h3 className="text-base font-semibold text-neutral-900">{t("settingsPage.inbox.appearance")}</h3>
@@ -64,16 +75,6 @@ export default async function SettingsInboxPage() {
 							<p className="mt-1 text-sm text-neutral-500">{t("settingsPage.inbox.shortcutsDescription")}</p>
 						</div>
 						<InboxShortcutsSettings />
-					</div>
-					<div className="py-6 first:pt-0 last:pb-0">
-						<div className="mb-4">
-							<h3 className="text-base font-semibold text-neutral-900">{t("settingsPage.inbox.notifications")}</h3>
-							<p className="mt-1 text-sm text-neutral-500">{t("settingsPage.inbox.notificationsDescription")}</p>
-						</div>
-						<BrowserNotificationSettings />
-						<div className="mt-4">
-							<PushNotificationSettings />
-						</div>
 					</div>
 				</div>
 			</section>
