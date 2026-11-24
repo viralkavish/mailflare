@@ -1,3 +1,4 @@
+// Modified for VDesai Mail (https://github.com/viralkavish/mailflare) on 2026-11-23 under GNU AGPL-3.0
 import { and, eq, isNotNull } from "drizzle-orm";
 import { getDb } from "@/db";
 import { messages, outboundJobs, users } from "@/db/schema";
@@ -31,6 +32,7 @@ import {
 } from "@/lib/realtime/utils";
 import { scheduleAutoDraft } from "@/lib/agent/jobs/utils";
 import { buildNewMessageNotification } from "@/lib/email/inbound-notification";
+import { evaluateDmarcReportAttachments } from "@/lib/email/dmarc-triage";
 
 export type InboundQueueMessage = {
 	from: string;
@@ -109,6 +111,21 @@ export async function processInboundMessage(
 	const messageId = await inboundMessageId(payload.rawR2Key);
 	const snippet = buildSnippet(parsed.text, parsed.html);
 	const deliveredAddress = getEmailAddress(payload.to) || `${decision.mailbox.localPart}@${decision.mailbox.hostname}`;
+	const isDmarcRecipient = deliveredAddress.toLowerCase().startsWith("dmarc@");
+	if (isDmarcRecipient && parsed.messageId) {
+		const [dupDmarc] = await db
+			.select({ id: messages.id })
+			.from(messages)
+			.where(and(eq(messages.mailboxId, decision.mailbox.mailboxId), eq(messages.providerMessageId, parsed.messageId)))
+			.limit(1);
+		if (dupDmarc) {
+			await dropRaw();
+			return;
+		}
+	}
+	const dmarcTriage = isDmarcRecipient
+		? await evaluateDmarcReportAttachments(parsed.attachments)
+		: { isDmarcReport: false, cleanPass: false, failedCount: 0 };
 	// Keep the whole To header so reply-all can address everyone; rules and
 	// webhooks still see the envelope recipient the message was delivered to.
 	const toAddr = parsed.toAddr ?? payload.to;
@@ -150,10 +167,14 @@ export async function processInboundMessage(
 			fingerprint: spamAnalysis?.fingerprint ?? "",
 		};
 	}
-	const status = destination.status === "received" && spamAnalysis?.verdict === "spam"
+	const baseStatus = destination.status === "received" && spamAnalysis?.verdict === "spam"
 		? "spam"
 		: destination.status;
-	const folderId = status === "spam" ? null : destination.folderId;
+	const status = baseStatus === "received" && dmarcTriage.cleanPass ? "archived" : baseStatus;
+	const effectiveSubject = dmarcTriage.isDmarcReport && !dmarcTriage.cleanPass
+		? `[DMARC ALERT: ${dmarcTriage.failedCount} failed] ${parsed.subject ?? "DMARC Report"}`
+		: parsed.subject;
+	const folderId = status === "spam" || status === "archived" ? null : destination.folderId;
 	// A contact the database cannot hold (e.g. an over-long address) must not lose the mail.
 	const contact = await upsertContactFromAddress(env, {
 		userId: decision.mailbox.userId,
@@ -196,14 +217,14 @@ export async function processInboundMessage(
 			toAddr,
 			ccAddr: parsed.ccAddr,
 			replyTo: parsed.replyTo,
-			subject: parsed.subject,
+			subject: effectiveSubject,
 			snippet,
 			textBody: parsed.text,
 			htmlBody: parsed.html,
 			rawR2Key: payload.rawR2Key,
 			status,
 			// The From header is forgeable, so mail "from yourself" is not treated as already read.
-			read: false,
+			read: dmarcTriage.cleanPass,
 			threadId,
 			inReplyTo: parsed.inReplyTo,
 			references: parsed.references.length ? parsed.references.join(" ") : null,
@@ -253,7 +274,7 @@ export async function processInboundMessage(
 		}
 	}
 
-	if (status === "spam" || status === "trash") {
+	if (status === "spam" || status === "trash" || status === "archived") {
 		console.info(`No notification for ${messageId}: filed as ${status}`);
 	} else {
 		const notificationUserIds = await getMailboxNotificationUserIds(
@@ -266,7 +287,7 @@ export async function processInboundMessage(
 			mailboxId: decision.mailbox.mailboxId,
 			fromAddr,
 			contact,
-			subject: parsed.subject,
+			subject: effectiveSubject,
 		}));
 	}
 	// Spam and blocked mail carry an unauthenticated From; consumers acting on it would be fooled.
