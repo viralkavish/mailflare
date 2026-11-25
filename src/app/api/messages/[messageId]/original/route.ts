@@ -1,3 +1,4 @@
+// Modified for VDesai Mail (https://github.com/viralkavish/mailflare) on 2026-11-24 under GNU AGPL-3.0
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { messages } from "@/db/schema";
@@ -14,11 +15,18 @@ export async function GET(request: Request, { params }: MessageOriginalRoutePara
 
 	const { messageId } = await params;
 	const db = getDb(env);
-	const [message] = await db
+	let [message] = await db
 		.select({ mailboxId: messages.mailboxId, userId: messages.userId, status: messages.status, privateDraft: messages.privateDraft, rawR2Key: messages.rawR2Key })
 		.from(messages)
 		.where(eq(messages.id, messageId))
 		.limit(1);
+	if (!message && env.DB_PRIMARY && env.DB_PRIMARY !== env.DB) {
+		[message] = await getDb({ DB: env.DB_PRIMARY })
+			.select({ mailboxId: messages.mailboxId, userId: messages.userId, status: messages.status, privateDraft: messages.privateDraft, rawR2Key: messages.rawR2Key })
+			.from(messages)
+			.where(eq(messages.id, messageId))
+			.limit(1);
+	}
 	if (!message?.mailboxId || isOthersDraft(message, user.id)) return new Response("Message not found", { status: 404 });
 	const access = await getMailboxAccessLevel(db, user, message.mailboxId);
 	if (!access?.canRead) return new Response("Message not found", { status: 404 });

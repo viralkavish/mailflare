@@ -1,3 +1,4 @@
+// Modified for VDesai Mail (https://github.com/viralkavish/mailflare) on 2026-11-24 under GNU AGPL-3.0
 import { AUTH_SESSION_CHANGED_EVENT, authFetch } from "@/lib/auth/client";
 import { applyPendingToMessage, rememberMessageFields } from "@/lib/messages/field-store";
 import type { Message } from "@/hooks/types";
@@ -134,7 +135,7 @@ export function primeMessageDetail(message: Message): void {
 	});
 }
 
-export async function fetchCachedMessageDetail(messageId: string, force = false): Promise<CachedMessageDetail> {
+export async function fetchCachedMessageDetail(messageId: string, force = false, revalidated = false): Promise<CachedMessageDetail> {
 	const cached = getCachedMessageDetail(messageId);
 	if (!force && cached) return cached;
 	if (detailRequests.has(messageId)) return detailRequests.get(messageId) ?? {};
@@ -143,9 +144,18 @@ export async function fetchCachedMessageDetail(messageId: string, force = false)
 	const requestStateRevision = stateRevisions.get(messageId) ?? 0;
 	const request = authFetch(`/api/messages/${messageId}`, { cache: "no-store" })
 		.then(async (response) => {
+			if (response.status >= 500 || response.status === 408 || response.status === 429) {
+				throw new Error(`Transient message detail failure (${response.status})`);
+			}
 			const data = await response.json() as CachedMessageDetail;
-			if (requestGeneration !== generation) throw new Error("Message request invalidated");
-			if (requestRevision !== (detailRevisions.get(messageId) ?? 0)) throw new Error("Message request invalidated");
+			const invalidated =
+				requestGeneration !== generation
+				|| requestRevision !== (detailRevisions.get(messageId) ?? 0);
+			if (invalidated) {
+				if (detailRequests.get(messageId) === request) detailRequests.delete(messageId);
+				if (!revalidated) return fetchCachedMessageDetail(messageId, true, true);
+				throw new Error("Message request invalidated");
+			}
 			const reconciled = requestStateRevision === (stateRevisions.get(messageId) ?? 0)
 				? data
 				: preserveNewerState(messageId, data);

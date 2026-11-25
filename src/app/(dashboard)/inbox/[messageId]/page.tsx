@@ -1,4 +1,5 @@
 "use client";
+// Modified for VDesai Mail (https://github.com/viralkavish/mailflare) on 2026-11-24 under GNU AGPL-3.0
 import { confirmDestructive } from "@/components/ui/confirm-dialog";
 
 import { authFetch } from "@/lib/auth/client";
@@ -64,6 +65,23 @@ import { MailingListBanner } from "@/components/messages/mailing-list-banner";
 import { useMailingListBanner } from "@/components/messages/use-mailing-list-banner";
 
 const EMPTY_ATTACHMENTS: MessageAttachment[] = [];
+const BODY_RETRY_DELAYS_MS = [350, 1000];
+
+async function fetchMessageDetailWithRetry(messageId: string, force: boolean): Promise<MessageDetailResponse> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= BODY_RETRY_DELAYS_MS.length; attempt += 1) {
+    if (attempt > 0) {
+      await new Promise((resolve) => setTimeout(resolve, BODY_RETRY_DELAYS_MS[attempt - 1]));
+    }
+    try {
+      const detail = await fetchMessageDetail(messageId, force || attempt > 0);
+      if (detail.body || detail.error) return detail;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError ?? new Error("Unable to load message detail");
+}
 
 export default function MessageDetailPage() {
   const params = useParams<{ messageId: string }>();
@@ -135,14 +153,21 @@ function MessageDetailContent({ messageId }: { messageId: string }) {
         setBodyPending(true);
         setBodyError(false);
         try {
-          const full = await fetchMessageDetail(messageId, true);
+          const full = await fetchMessageDetailWithRetry(messageId, true);
           if (!cancelled) {
-            setData(() => {
+            if (!full.body && !full.message) {
+              setBodyPending(false);
+              setBodyError(true);
+              return;
+            }
+            setData((current) => {
+              if (!full.message && current?.message) return current;
               // A prefetched body may predate the opening read request.
               if (openingRead.current && full.message) return { ...full, message: { ...full.message, read: true } };
               return full;
             });
             setBodyPending(false);
+            setBodyError(!full.body);
           }
         } catch {
           if (!cancelled) {
@@ -153,7 +178,7 @@ function MessageDetailContent({ messageId }: { messageId: string }) {
         return;
       }
       setLoading(true);
-      const nextData = await fetchMessageDetail(messageId).catch(() => fetchMessageDetail(messageId)).catch(() => ({ error: t("message.notFound") }));
+      const nextData = await fetchMessageDetailWithRetry(messageId, false).catch(() => ({ error: t("message.notFound") }));
       if (!cancelled) {
         setData(nextData);
         setLoading(false);
@@ -221,7 +246,12 @@ function MessageDetailContent({ messageId }: { messageId: string }) {
     setBodyPending(true);
     setBodyError(false);
     try {
-      const full = await fetchMessageDetail(messageId, true);
+      const full = await fetchMessageDetailWithRetry(messageId, true);
+      if (!full.body) {
+        setBodyPending(false);
+        setBodyError(true);
+        return;
+      }
       setData(() => {
         if (openingRead.current && full.message) return { ...full, message: { ...full.message, read: true } };
         return full;
@@ -471,11 +501,18 @@ function MessageDetailContent({ messageId }: { messageId: string }) {
           {scheduledAt && <div className="px-4 sm:px-0 sm:pl-[78px]"><ScheduledSendBanner messageId={message.id} scheduledAt={scheduledAt} onRescheduled={(next) => setData((current) => current ? { ...current, scheduledAt: next } : current)} /></div>}
           <div className="prose max-w-none px-4 text-neutral-900 sm:px-0 sm:pl-[78px]">
             {bodyError ? (
-              <div role="alert" className="not-prose rounded-lg border border-neutral-200 bg-neutral-50 p-4">
-                <p className="text-sm text-neutral-700">{t("source.loadFailed")}</p>
-                <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => void retryBody()}>
-                  {t("webhooks.retry")}
-                </Button>
+              <div className="space-y-3">
+                {message.snippet && (
+                  <pre className="whitespace-pre-wrap text-sm text mx-auto">
+                    {message.snippet}
+                  </pre>
+                )}
+                <div role="alert" className="not-prose rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+                  <p className="text-sm text-neutral-700">{t("source.loadFailed")}</p>
+                  <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => void retryBody()}>
+                    {t("webhooks.retry")}
+                  </Button>
+                </div>
               </div>
             ) : bodyPending ? (
               <div aria-busy="true" aria-label={t("common.loading")} className="space-y-3">

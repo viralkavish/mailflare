@@ -1,4 +1,4 @@
-// Modified for VDesai Mail (https://github.com/viralkavish/mailflare) on 2026-11-23 under GNU AGPL-3.0
+// Modified for VDesai Mail (https://github.com/viralkavish/mailflare) on 2026-11-24 under GNU AGPL-3.0
 import { and, eq, isNotNull } from "drizzle-orm";
 import { getDb } from "@/db";
 import { messages, outboundJobs, users } from "@/db/schema";
@@ -352,7 +352,10 @@ export async function getMessageWithBody(env: CloudflareEnv, userId: string, mes
 
 export async function getMessageWithBodyForUser(env: CloudflareEnv, user: SessionUser, messageId: string) {
 	const db = getDb(env);
-	const [message] = await db.select().from(messages).where(eq(messages.id, messageId)).limit(1);
+	let [message] = await db.select().from(messages).where(eq(messages.id, messageId)).limit(1);
+	if (!message && env.DB_PRIMARY && env.DB_PRIMARY !== env.DB) {
+		[message] = await getDb({ DB: env.DB_PRIMARY }).select().from(messages).where(eq(messages.id, messageId)).limit(1);
+	}
 	if (!message?.mailboxId || isOthersDraft(message, user.id)) return null;
 	const access = await getMailboxAccessLevel(db, user, message.mailboxId);
 	if (!access?.canRead) return null;

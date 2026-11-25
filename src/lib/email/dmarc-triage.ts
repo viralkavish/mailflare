@@ -1,4 +1,4 @@
-// Modified for VDesai Mail (https://github.com/viralkavish/mailflare) on 2026-11-23 under GNU AGPL-3.0
+// Modified for VDesai Mail (https://github.com/viralkavish/mailflare) on 2026-11-24 under GNU AGPL-3.0
 import type { AttachmentContent } from "@/lib/email/attachment-types";
 
 const decoder = new TextDecoder("utf-8", { fatal: false });
@@ -54,7 +54,7 @@ async function extractSingleZipEntryXml(bytes: Uint8Array): Promise<string | nul
 				controller.close();
 			},
 		});
-		return readStreamText(input.pipeThrough(ds));
+		return readStreamText(input.pipeThrough(ds as unknown as ReadableWritablePair<Uint8Array, Uint8Array>));
 	}
 	return null;
 }
@@ -74,7 +74,7 @@ async function extractXmlFromAttachment(att: AttachmentContent): Promise<string 
 					controller.close();
 				},
 			});
-			return await readStreamText(input.pipeThrough(ds));
+			return await readStreamText(input.pipeThrough(ds as unknown as ReadableWritablePair<Uint8Array, Uint8Array>));
 		}
 		if ((bytes[0] === 0x50 && bytes[1] === 0x4b) || name.endsWith(".zip") || type.includes("zip")) {
 			return await extractSingleZipEntryXml(bytes);
